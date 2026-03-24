@@ -1,0 +1,27 @@
+# purpose is to get me into the host of a k8s node so I can poke around and look at the filesystem config
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-root-shell
+  namespace: default
+spec:
+  hostPID: true
+  hostIPC: true
+  hostNetwork: true
+  containers:
+  - name: nsenter
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: host-root
+      mountPath: /host
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+      type: Directory
+  restartPolicy: Never
+

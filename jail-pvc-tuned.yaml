@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jail-pvc-dupe3
+  namespace: vllm
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Ti
+  volumeName: jail-pv-dupe3
+  storageClassName: slurm-local-pv
+

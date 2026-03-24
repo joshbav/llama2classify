@@ -1,0 +1,242 @@
+---
+# Source: chart-vllm/templates/poddisruptionbudget.yaml
+#apiVersion: policy/v1
+#kind: PodDisruptionBudget
+#metadata:
+#  name: "vllm-server-pdb"
+#  namespace: vllm
+#spec:
+#  maxUnavailable: 1
+---
+# Source: chart-vllm/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "vllm-server-secrets"
+  namespace: vllm
+type: Opaque
+data:
+---
+# Source: chart-vllm/templates/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "vllm-server-storage-claim"
+  namespace: vllm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 0Gi
+---
+# Source: chart-vllm/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: "vllm-server-service"
+  namespace: vllm
+spec:
+  type: ClusterIP
+  ports:
+    - name: "service-port"
+      port: 80
+      targetPort: "container-port"
+      protocol: TCP
+  selector:
+    environment: test
+    release: test
+---
+# Source: chart-vllm/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "vllm-server-deployment-vllm"
+  namespace: vllm
+  labels:
+    environment: test
+    release: test
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+  selector:                                                                                                                                  
+    matchLabels:
+      environment: "test"
+      release: "test"
+  progressDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        environment: "test"
+        release: "test"
+    spec:
+      containers:
+        - name: "vllm"
+          image: "vllm/vllm-openai:v0.10.0"
+          command :
+          - vllm
+          - serve
+          - /mnt/jail/basemodel
+          - --served-model-name
+          - basemodel
+          - --dtype
+          - bfloat16
+          - --host
+          - 0.0.0.0
+          - --port
+          - "8000"
+          securityContext:
+            runAsNonRoot: false            
+          imagePullPolicy: IfNotPresent
+          env: []          
+          ports:
+            - name: "container-port"
+              containerPort: 8000
+                      
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+          - name: vllm-server-storage
+            mountPath: /data
+      initContainers:
+      - name: wait-download-model
+        image: "amazon/aws-cli:2.6.4"
+        command: 
+          - /bin/bash
+        args:
+          - -eucx
+          - while aws --endpoint-url $S3_ENDPOINT_URL s3 sync --dryrun s3://$S3_BUCKET_NAME/$S3_PATH /data | grep -q download; do sleep 10; done
+        env:
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: vllm-server-secrets
+                key: s3endpoint
+          - name: S3_BUCKET_NAME
+            valueFrom:
+              secretKeyRef:
+                name: vllm-server-secrets
+                key: s3bucketname
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: vllm-server-secrets
+                key: s3accesskeyid
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: vllm-server-secrets
+                key: s3accesskey
+          - name: S3_PATH
+            value: ""
+          - name: AWS_EC2_METADATA_DISABLED
+            value: "true"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            cpu: 500m
+            memory: 2Gi
+        volumeMounts:
+        - name: vllm-server-storage
+          mountPath: /data
+      volumes:
+        - name: vllm-server-storage
+          persistentVolumeClaim:
+            claimName: vllm-server-storage-claim
+      runtimeClassName: nvidia
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: nvidia.com/gpu.product
+                  operator: In
+                  values:
+                    - TYPE_GPU_USED
+---
+# Source: chart-vllm/templates/job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "vllm-server-init-vllm"
+  namespace: vllm
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+   metadata:
+     name: init-vllm
+   spec:
+    containers:
+    - name: job-download-model
+      image: "amazon/aws-cli:2.6.4"
+      command: 
+        - /bin/bash
+      args:
+        - -eucx
+        - aws --endpoint-url $S3_ENDPOINT_URL s3 sync s3://$S3_BUCKET_NAME/$S3_PATH /data
+      env:
+        - name: S3_ENDPOINT_URL
+          valueFrom:
+            secretKeyRef:
+              name: vllm-server-secrets
+              key: s3endpoint
+        - name: S3_BUCKET_NAME
+          valueFrom:
+            secretKeyRef:
+              name: vllm-server-secrets
+              key: s3bucketname
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: vllm-server-secrets
+              key: s3accesskeyid
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: vllm-server-secrets
+              key: s3accesskey
+        - name: S3_PATH
+          value: ""
+        - name: AWS_EC2_METADATA_DISABLED
+          value: "true"
+      volumeMounts:
+        - name: vllm-server-storage
+          mountPath: /data
+      resources:
+        requests:
+          cpu: 200m
+          memory: 1Gi
+        limits:
+          cpu: 500m
+          memory: 2Gi
+    restartPolicy: OnFailure
+    volumes:
+    - name: vllm-server-storage
+      persistentVolumeClaim:
+        claimName: "vllm-server-storage-claim"

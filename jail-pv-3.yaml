@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    meta.helm.sh/release-name: slurm-cluster-storage
+    #meta.helm.sh/release-namespace: soperator
+  finalizers:
+  - kubernetes.io/pv-protection
+  labels:
+    #app.kubernetes.io/managed-by: Helm
+    #helm.toolkit.fluxcd.io/name: flux-system-soperator-fluxcd-slurm-cluster-storage
+    #helm.toolkit.fluxcd.io/namespace: flux-system
+  name: jail-pv-dupe3
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 2Ti
+  local:
+    path: /mnt/jail
+  mountOptions:
+  - rw
+  - relatime
+  - exec
+  - dev
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: slurm.nebius.ai/jail
+          operator: In
+          values:
+          - "true"
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: slurm-local-pv
+  volumeMode: Filesystem
