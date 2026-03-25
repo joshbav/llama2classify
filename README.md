@@ -5,7 +5,7 @@ I was tasked with a fine-tuning job on any existing model, and demonstrating the
 
 I chose TinyLlama since it's designed for text completion, not classification. This way I could show the improvement. I was worried that if I used a BERT model the zero-shot performance would be too good, then I wouldn't be able to demonstrate any reliable improvement. 
 
-I used the IMDB movie sentiment dataset, since it's small enough that it hopefully would not cause catastrophic model collapse. 
+I used the IMDB movie sentiment dataset, since it's small enough that it hopefully would not cause catastrophic model collapse. It's too big to include in this repo. 
 
 ChatGPT and Claude were utilized to help me with the training code, but I had to make some changes manually regardless.
 
@@ -26,10 +26,12 @@ This took considerably more time than I had estimated. I was surprised how usefu
    Was ran locally, to do as much tokenizer work as possible, in order to save time since we don't need a GPU for tokenization.
    It simulated the data flow through the loss masking logic to see if any entries end up fully masked, which was the cause of a problem since loss had gone to 0 during training.
 # A FEW KEY FILES
-[This](https://github.com/joshbav/llama2classify/blob/main/Nebius%20Demo.pptx) is the powerpoint preso I used while presenting this project during my interview.
+[This](https://github.com/joshbav/llama2classify/blob/main/distributed_train.py) is the custom PyTorch training script.
 
 [This](https://github.com/joshbav/llama2classify/blob/main/train5.sbatch) is the Slurm .sbatch file for the training job.
 
 [This](https://github.com/joshbav/llama2classify/blob/main/Dockerfile) is the Dockerfile for running the pytorch job, and doing other things.
 
-This was certainly a learning experience. 
+[This](https://github.com/joshbav/llama2classify/blob/main/Nebius%20Demo.pptx) is the powerpoint for presenting my work during the interview.
+
+This was a fun and challenging project.
